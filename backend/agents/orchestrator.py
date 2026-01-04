@@ -2,7 +2,9 @@
 
 from connectonion import Agent
 
+from agents.focus_agent import FocusAgent
 from agents.planner_agent import PlannerAgent
+from tools.plan_tools_v2 import PlanManager
 
 
 SYSTEM_PROMPT = """
@@ -51,8 +53,10 @@ class OrchestratorAgent:  # 注意：不再继承 Agent，而是组合使用 Age
     """Front-of-house router that simulates hand-offs."""
 
     def __init__(self):
-        # 预热 PlannerAgent，便于直接转接
-        self.planner_agent = PlannerAgent()
+        # 预热 PlannerAgent，便于直接转接；PlanManager 提升为路由层依赖以做状态注入
+        self.plan_manager = PlanManager()
+        self.planner_agent = PlannerAgent(plan_manager=self.plan_manager)
+        self.focus_agent = FocusAgent()
         # 会话锁：若被占用，则后续用户输入将直接转发至锁定 Agent
         self.locked_agent = None
         self.escape_words = {"退出", "exit", "stop", "解锁", "终止", "结束"}
@@ -109,6 +113,8 @@ class OrchestratorAgent:  # 注意：不再继承 Agent，而是组合使用 Age
             active_agent = None
             if target == "PLANNER":
                 active_agent = self.planner_agent
+            elif target == "FOCUS":
+                active_agent = self.focus_agent
 
             if not active_agent:
                 msg = f"暂未实现对 {target} 的处理。"
@@ -135,12 +141,29 @@ class OrchestratorAgent:  # 注意：不再继承 Agent，而是组合使用 Age
         return fallback
 
     def _safe_handle(self, agent, user_input: str) -> dict:
-        """调用目标 Agent 的 handle，并包装成信封。"""
+        """调用目标 Agent 的 handle，并包装成信封；Planner 会自动注入 System State。"""
+        payload = self._build_payload(agent, user_input)
         try:
-            resp = agent.handle(user_input)
+            resp = agent.handle(payload)
         except Exception as exc:
             return {"content": f"[{agent.__class__.__name__} 错误] {exc}", "status": STATUS_FINISHED}
         return self._normalize_envelope(resp)
+
+    def _build_payload(self, agent, user_input: str) -> str:
+        """针对 Planner 注入计划上下文，其余 Agent 保持原始输入。"""
+        if isinstance(agent, PlannerAgent):
+            return self._inject_plan_context(user_input)
+        return user_input
+
+    def _inject_plan_context(self, user_input: str) -> str:
+        """拼装用户输入与今日计划上下文，防止 Planner 忽略状态。"""
+        try:
+            context = self.plan_manager.get_current_context()
+        except Exception as exc:
+            context = f"PlanManager.get_current_context 失败：{exc}"
+
+        sanitized_input = user_input.strip()
+        return f"<User_Input>\n{sanitized_input}\n</User_Input>\n\n<System_State>\n{context}\n</System_State>"
 
     def _normalize_envelope(self, resp) -> dict:
         """确保返回包含 content/status，未改造的 Agent 默认为 FINISHED。"""

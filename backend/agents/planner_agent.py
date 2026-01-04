@@ -62,9 +62,9 @@ class PlannerAgent:
             name="planner_agent_v2",
             model=model,
             system_prompt=PLANNER_PROMPT,
-            tools=[self.plan_manager, self.calendar],
-            quiet=True,
-            max_iterations=20,  # 增加迭代次数上限，防止复杂任务中断
+            tools=[self.plan_manager],
+            quiet=False,  # 开启日志以便调试工具调用
+            max_iterations=20,
         )
 
     def _init_calendar(self):
