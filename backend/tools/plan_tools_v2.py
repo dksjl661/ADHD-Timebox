@@ -38,7 +38,7 @@ class PlanManager:
 
     # -- 公共方法 --
 
-    def get_current_context(self) -> str:
+    def get_current_context(self, target_date: Optional[str] = None) -> str:
         """
         返回当前日期/时间/时区，以及今日计划摘要（若存在）。
         确保 Agent 在生成或调整时不会落入过去时间。
@@ -46,13 +46,21 @@ class PlanManager:
         now = datetime.datetime.now().astimezone()
         now_text = now.strftime("%Y-%m-%d %H:%M %Z (UTC%z)")
         today = now.date()
-        tasks, path, err = self._load_tasks(today.isoformat(), create_if_missing=False)
+        plan_date, date_err = self._parse_plan_date(target_date, today)
         header = f"当前时间：{now_text}"
+        if plan_date != today:
+            header = f"{header}\n聚焦日期：{plan_date.isoformat()}"
+        if date_err:
+            return f"{header}\n日期解析失败：{date_err}"
+
+        tasks, path, err = self._load_tasks(
+            plan_date.isoformat(), create_if_missing=False
+        )
         if err:
-            return f"{header}\n今日计划读取失败：{err}"
+            return f"{header}\n计划读取失败：{err}"
         if tasks is None or not tasks:
             return (
-                f"{header}\n今日尚未生成计划文件：{self._plan_path(today.isoformat())}"
+                f"{header}\n尚未生成计划文件：{self._plan_path(plan_date.isoformat())}"
             )
 
         summary_lines = []
@@ -78,12 +86,14 @@ class PlanManager:
                 f"{idx}. {start_text}-{end_text}{duration_mark} | {title}{status_mark}"
             )
         summary = "\n".join(summary_lines)
-        return f"{header}\n今日计划：\n{summary}"
+        return f"{header}\n计划：\n{summary}"
 
-    def create_daily_plan(self, tasks: Union[List[Dict], str]) -> str:
+    def create_daily_plan(
+        self, tasks: Union[List[Dict], str], target_date: Optional[str] = None
+    ) -> str:
         """
-        [智能合并模式] 更新或创建今日计划。
-        如果今日已有计划，会将新传入的任务合并进去（Upsert），而不是直接覆盖。
+        [智能合并模式] 更新或创建指定日期（默认今日）的计划。
+        如果目标日期已有计划，会将新传入的任务合并进去（Upsert），而不是直接覆盖。
         这防止了 Agent 只传新任务导致旧任务丢失的问题。
         """
         # 【新增】函数入口证明
@@ -106,7 +116,11 @@ class PlanManager:
             return f"❌ 计划生成失败：tasks 必须是列表。"
 
         now = datetime.datetime.now().astimezone()
-        plan_date = now.date()
+        plan_date, date_err = self._determine_plan_date(
+            target_date=target_date, tasks=tasks, today=now.date()
+        )
+        if date_err:
+            return f"❌ 计划生成失败：{date_err}"
 
         # --- 2. 预处理新任务 (Normalization) ---
         # 这里我们先处理新进来的任务，确保格式正确
@@ -130,11 +144,12 @@ class PlanManager:
                 errors.append(f"任务 '{title}' 时间格式错误")
                 continue
 
-            # 简单的日期检查
-            if start_dt.date() != plan_date:
-                # 如果Agent传了非今天的日期，这里记录一下但暂不严格阻断
-                debug_log(f"Warning: 任务 {title} 日期 {start_dt.date()} 不是今天")
-                pass
+            # 日期一致性检查
+            if start_dt.date() != plan_date or end_dt.date() != plan_date:
+                errors.append(
+                    f"任务 '{title}' 日期 {start_dt.date()} 与目标日期 {plan_date} 不一致"
+                )
+                continue
 
             normalized_task = {**task}
             # 确保有ID，如果没有就用 title 或时间戳生成
@@ -157,9 +172,8 @@ class PlanManager:
         # --- 3. 核心修改：读取旧数据并合并 (Smart Merge) ---
 
         # 尝试读取今天已有的文件
-        existing_tasks, path, _ = self._load_tasks(
-            plan_date.isoformat(), create_if_missing=True
-        )
+        plan_date_str = plan_date.isoformat()
+        existing_tasks, path, _ = self._load_tasks(plan_date_str, create_if_missing=True)
         if existing_tasks is None:
             existing_tasks = []
 
@@ -246,18 +260,31 @@ class PlanManager:
         if updated_count:
             action_msg.append(f"更新 {updated_count} 个")
 
-        result_msg = f"✅ 计划已更新。{'，'.join(action_msg)}。当前共有 {len(final_tasks)} 个任务。{sync_msg}"
+        result_msg = f"✅ 计划已更新（日期：{plan_date_str}）。{'，'.join(action_msg)}。当前共有 {len(final_tasks)} 个任务。{sync_msg}"
         return result_msg
 
     def update_schedule(
-        self, task_id: str, new_start: str, new_end: str, force: bool = False
+        self,
+        task_id: str,
+        new_start: str,
+        new_end: str,
+        force: bool = False,
+        target_date: Optional[str] = None,
     ) -> str:
         """
         修改已有任务或插入新任务。
         - 冲突时返回 CONFLICT 消息（除非 force=True）
         - 成功后写回 JSON，并尝试同步日历
+        - 支持通过 target_date 指定调整哪一天的任务（默认今日）
         """
-        plan_date_str = datetime.date.today().isoformat()
+        today = datetime.date.today()
+        plan_date, date_err = self._determine_plan_date_for_update(
+            new_start=new_start, new_end=new_end, target_date=target_date, today=today
+        )
+        if date_err:
+            return f"❌ 更新失败：{date_err}"
+
+        plan_date_str = plan_date.isoformat()
         tasks, path, err = self._load_tasks(plan_date_str, create_if_missing=True)
         if err:
             return f"❌ 更新失败：{err}"
@@ -270,7 +297,7 @@ class PlanManager:
         if not start_dt or not end_dt:
             return f"❌ 时间格式无法解析：{new_start} -> {new_end}"
         if start_dt.date() != plan_date or end_dt.date() != plan_date:
-            return f"❌ 仅支持调整今日（{plan_date.isoformat()}）的时间盒。"
+            return f"❌ 仅支持调整 {plan_date.isoformat()} 的时间盒，发现日期不一致。"
         if end_dt <= start_dt:
             return "❌ 结束时间必须晚于开始时间。"
         if start_dt < datetime.datetime.now().astimezone():
@@ -331,14 +358,20 @@ class PlanManager:
         replaced = f"，替换了 {len(conflicts)} 个冲突任务" if conflicts else ""
         return f"✅ {action} {task_id}: {start_text[11:]}-{end_text[11:]}{replaced}{sync_msg}"
 
-    def list_tasks(self) -> str:
-        """列出今日计划的所有任务及状态。"""
-        today = datetime.date.today().isoformat()
-        tasks, path, err = self._load_tasks(today, create_if_missing=False)
+    def list_tasks(self, target_date: Optional[str] = None) -> str:
+        """列出指定日期（默认今日）的所有任务及状态。"""
+        today = datetime.date.today()
+        plan_date, date_err = self._parse_plan_date(target_date, today)
+        if date_err:
+            return f"❌ {date_err}"
+
+        plan_date_str = plan_date.isoformat()
+        tasks, path, err = self._load_tasks(plan_date_str, create_if_missing=False)
         if err:
             return f"❌ {err}"
         if tasks is None or not tasks:
-            return f"今日无计划：{self._plan_path(today)}"
+            prefix = "今日无计划" if plan_date == today else "无计划"
+            return f"{prefix}：{self._plan_path(plan_date_str)}"
 
         plan_date = self._plan_date_from_path(path)
         normalized = self._normalize_for_summary(tasks, plan_date)
@@ -486,6 +519,108 @@ class PlanManager:
             )
         )
         return normalized
+
+    def _parse_plan_date(
+        self, target_date: Optional[Union[str, datetime.date]], today: datetime.date
+    ) -> Tuple[datetime.date, Optional[str]]:
+        """Parse target_date into a date; support today/tomorrow keywords."""
+        if target_date is None:
+            return today, None
+        if isinstance(target_date, datetime.date):
+            return target_date, None
+
+        text = str(target_date).strip().lower()
+        if text in {"today", "今天"}:
+            return today, None
+        if text in {"tomorrow", "明天"}:
+            return today + datetime.timedelta(days=1), None
+        if text in {"yesterday", "昨天"}:
+            return today - datetime.timedelta(days=1), None
+
+        try:
+            parsed = datetime.datetime.strptime(text, "%Y-%m-%d").date()
+            return parsed, None
+        except Exception:
+            return today, f"无法解析目标日期：{target_date}（期望 YYYY-MM-DD 或 tomorrow）。"
+
+    def _extract_date_from_text(self, value: Optional[str]) -> Optional[datetime.date]:
+        """Extract date component from a datetime string if present."""
+        if not value or not isinstance(value, str):
+            return None
+        text = value.strip()
+        try:
+            dt = datetime.datetime.fromisoformat(text.replace("T", " "))
+            return dt.date()
+        except Exception:
+            pass
+        match = re.search(r"(\d{4}-\d{2}-\d{2})", text)
+        if match:
+            try:
+                return datetime.datetime.strptime(match.group(1), "%Y-%m-%d").date()
+            except ValueError:
+                return None
+        return None
+
+    def _determine_plan_date(
+        self,
+        target_date: Optional[str],
+        tasks: List[Dict],
+        today: datetime.date,
+    ) -> Tuple[datetime.date, Optional[str]]:
+        """Decide which date's plan file to touch based on target_date or task dates."""
+        plan_date, date_err = self._parse_plan_date(target_date, today)
+        if date_err:
+            return plan_date, date_err
+
+        explicit_dates = []
+        for task in tasks:
+            for key in ("start", "end"):
+                detected = self._extract_date_from_text(task.get(key))
+                if detected and detected not in explicit_dates:
+                    explicit_dates.append(detected)
+
+        if explicit_dates:
+            if not target_date:
+                plan_date = explicit_dates[0]
+            if any(d != plan_date for d in explicit_dates):
+                dates_text = "、".join(sorted({d.isoformat() for d in explicit_dates}))
+                return plan_date, f"任务包含多个日期：{dates_text}，请分开保存或指定统一的 target_date。"
+
+        return plan_date, None
+
+    def _determine_plan_date_for_update(
+        self,
+        new_start: str,
+        new_end: str,
+        target_date: Optional[str],
+        today: datetime.date,
+    ) -> Tuple[datetime.date, Optional[str]]:
+        """Resolve plan date for update/insert operations."""
+        plan_date, date_err = self._parse_plan_date(target_date, today)
+        if date_err:
+            return plan_date, date_err
+
+        explicit_dates = [
+            d
+            for d in (
+                self._extract_date_from_text(new_start),
+                self._extract_date_from_text(new_end),
+            )
+            if d
+        ]
+        if explicit_dates:
+            base = explicit_dates[0]
+            if not target_date:
+                plan_date = base
+            if any(d != plan_date for d in explicit_dates):
+                return plan_date, "开始/结束时间不在同一天，请修正或指定 target_date。"
+            if target_date and plan_date != base:
+                return (
+                    plan_date,
+                    f"target_date={plan_date.isoformat()} 与时间中的日期 {base.isoformat()} 不一致",
+                )
+
+        return plan_date, None
 
     def _format_duration(
         self,
