@@ -5,7 +5,7 @@ import json
 import os
 from typing import Optional
 
-from connectonion import Agent
+from connectonion import Agent, Memory
 
 from agents.focus_agent import FocusAgent
 from agents.planner_agent import PlannerAgent
@@ -60,15 +60,20 @@ class OrchestratorAgent:  # 注意：不再继承 Agent，而是组合使用 Age
     """Front-of-house router that simulates hand-offs."""
 
     def __init__(self):
+        # 全局共享记忆，供 Planner / Focus / Reward 等 Agent 读取或写入
+        self.shared_memory = Memory(memory_dir="adhd_brain/long_term_memory")
         # 预热 PlannerAgent，便于直接转接；PlanManager 提升为路由层依赖以做状态注入
         self.plan_manager = PlanManager()
-        self.planner_agent = PlannerAgent(plan_manager=self.plan_manager)
+        self.planner_agent = PlannerAgent(
+            plan_manager=self.plan_manager, memory=self.shared_memory
+        )
         self.parking_service = ParkingService()
         self.reward_agent = RewardAgent(plan_manager=self.plan_manager)
         self.focus_agent = FocusAgent(
             plan_manager=self.plan_manager,
             parking_service=self.parking_service,
             reward_toolkit=self.reward_agent.toolkit,
+            memory=self.shared_memory,
         )
         # 会话锁：若被占用，则后续用户输入将直接转发至锁定 Agent
         self.locked_agent = None

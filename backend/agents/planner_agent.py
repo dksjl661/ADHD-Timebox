@@ -10,7 +10,7 @@ warnings.filterwarnings(
 
 from typing import Optional
 
-from connectonion import Agent, GoogleCalendar
+from connectonion import Agent, GoogleCalendar, Memory
 
 from tools.plan_tools_v2 import PlanManager
 
@@ -55,20 +55,26 @@ class PlannerAgent:
         model: str = DEFAULT_MODEL,
         plan_manager: Optional[PlanManager] = None,
         calendar: Optional[object] = None,
+        memory: Optional[Memory] = None,
     ):
         self.calendar = calendar or self._init_calendar()
         self.plan_manager = plan_manager or PlanManager(calendar=self.calendar)
+        self.memory = memory
 
         # 补丁：如果传入的 plan_manager 没有 calendar，手动注入
         # 这解决了 Orchestrator 初始化 PlanManager 时未传入 Calendar 的问题
         if self.plan_manager.calendar is None:
             self.plan_manager.calendar = self.calendar
 
+        tools = [self.plan_manager]
+        if self.memory:
+            tools.append(self.memory)
+
         self.agent = Agent(
             name="planner_agent_v2",
             model=model,
             system_prompt=PLANNER_PROMPT,
-            tools=[self.plan_manager],
+            tools=tools,
             quiet=False,  # 开启日志以便调试工具调用
             max_iterations=20,
         )

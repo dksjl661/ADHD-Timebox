@@ -4,7 +4,7 @@ import datetime
 import os
 from typing import Optional
 
-from connectonion import Agent
+from connectonion import Agent, Memory
 
 from tools.focus_tools import ContextTool, FocusToolkit
 from tools.parking_tools import ParkingService, ParkingToolkit
@@ -38,10 +38,15 @@ class FocusAgent:
         toolkit: Optional[FocusToolkit] = None,
         parking_service: Optional[ParkingService] = None,
         reward_toolkit: Optional[RewardToolkit] = None,
+        memory: Optional[Memory] = None,
     ):
         self.plan_manager = plan_manager or PlanManager()
-        self.context_tool = context_tool or ContextTool(plan_dir=self.plan_manager.plan_dir)
-        self.reward_toolkit = reward_toolkit or RewardToolkit(brain_dir=self.plan_manager.plan_dir)
+        self.context_tool = context_tool or ContextTool(
+            plan_dir=self.plan_manager.plan_dir
+        )
+        self.reward_toolkit = reward_toolkit or RewardToolkit(
+            brain_dir=self.plan_manager.plan_dir
+        )
         self.toolkit = toolkit or FocusToolkit(
             plan_manager=self.plan_manager,
             context_tool=self.context_tool,
@@ -49,11 +54,16 @@ class FocusAgent:
         )
         self.parking_service = parking_service or ParkingService()
         self.parking_toolkit = ParkingToolkit(service=self.parking_service)
+        self.memory = memory
+        tools = [self.context_tool, self.toolkit, self.parking_toolkit]
+        if self.memory:
+            tools.append(self.memory)
+
         self.agent = Agent(
             name="focus_agent_v3",
             model=model,
             system_prompt=FOCUS_PROMPT,
-            tools=[self.context_tool, self.toolkit, self.parking_toolkit],
+            tools=tools,
             quiet=True,
             max_iterations=12,
         )

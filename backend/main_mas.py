@@ -10,13 +10,15 @@ def _build_idle_handler(orchestrator: OrchestratorAgent):
             idle_seconds = int(payload.get("idle_seconds") or 0)
             idle_minutes = max(idle_seconds // 60, 1)
             window = payload.get("active_window") or "未知窗口"
-            focus_state = payload.get("focus_state") if isinstance(payload, dict) else {}
-            active_task = focus_state.get("active_task") if isinstance(focus_state, dict) else {}
+            focus_state = (
+                payload.get("focus_state") if isinstance(payload, dict) else {}
+            )
+            active_task = (
+                focus_state.get("active_task") if isinstance(focus_state, dict) else {}
+            )
             task_title = (active_task or {}).get("title") or "当前任务"
 
-            message = (
-                f"[IDLE_ALERT] 已空闲约 {idle_minutes} 分钟。当前窗口：{window}。当前任务：{task_title}"
-            )
+            message = f"[IDLE_ALERT] 已空闲约 {idle_minutes} 分钟。当前窗口：{window}。当前任务：{task_title}"
             resp = orchestrator.focus_agent.handle(message)
             content = resp.get("content") if isinstance(resp, dict) else str(resp)
             print(f"\n⚠️ 走神检测\n{content}\n(提示：输入任意内容继续对话)")
