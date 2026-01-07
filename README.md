@@ -231,6 +231,7 @@ A: 打开 `backend/main.py` (单体) 或 `backend/agents/orchestrator.py` (MAS)�
   <img width="670" height="227" alt="Screenshot 2026-01-07 at 11 31 33" src="https://github.com/user-attachments/assets/8b483a11-65e2-4a7a-b5c1-e348c446cf61" /><br>
   <img width="677" height="235" alt="Screenshot 2026-01-07 at 11 31 51" src="https://github.com/user-attachments/assets/486dfbe0-0043-4f0e-81c7-c179393c9acd" /><br>
   还会保存到 thought_parking 文件中
+  
   <img width="563" height="211" alt="Screenshot 2026-01-07 at 11 36 09" src="https://github.com/user-attachments/assets/a0476cca-ba04-4865-85e6-332d37e32f53" /><br>
 
 - **走神检测 (Distraction Detection)：** 实时监测输入设备状态。如果用户超过 5 分钟无鼠标/键盘操作，系统会主动发出温和提醒，拉回注意力。
