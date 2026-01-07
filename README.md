@@ -1,6 +1,7 @@
 # ADHD Timebox Agent
 
-这是一个专为 ADHD 用户设计的智能时间管理助手，基于“时间盒（Timeboxing）”方法论。它不仅是一个日程表，更是一个能理解你状态、帮你拆解任务、并在你执行时提供陪伴的 AI 教练。
+作为一个开发者，同时也是 ADHD 人群的一员，我深知这种大脑的痛点：并非不想做，而是优先级混乱、启动困难以及极易在任务切换中迷失。
+为了解决这个问题，我基于 ConnectOnion 框架开发了 ADHD Timebox Agent。这不是一个普通的 To-do List，而是一个基于**“时间盒（Timeboxing）”**方法论的全流程执行教练。它不仅仅是记录任务，更是通过 AI 代理接管了我的“前额叶皮层”功能——负责规划、监督执行，并提供多巴胺反馈。
 
 ## 🚀 快速开始
 
@@ -265,6 +266,8 @@ A: 打开 `backend/main.py` (单体) 或 `backend/agents/orchestrator.py` (MAS)�
 
 在系统的早期设计中，我曾陷入“万物皆 Agent”的误区，例如设计了一个独立的 `Parking Agent` 专门负责记录用户的杂念。但在实际运行中，我发现了严重的问题，并最终通过 **Tool Use** 完成了架构重构。
 
+ConnectOnion 的设计哲学——**"Functions are Tools"** 极大地简化了开发。我不需要写复杂的封装类，只需要写标准的 Python 函数，就能直接变成 Agent 可调用的工具。这不仅让我能快速迭代 `Google Calendar`、`System Lock` 等功能，而且还解决了这个痛苦的问题
+
 当用户在专注时说“我想查个资料”，Orchestrator 需要将对话从 `Focus Agent` 切换到 `Parking Agent`。这种设计导致了不必要的上下文切换。
      **路由抖动：** 纯 Prompt 的路由切换往往不稳定，Orchestrator 容易在频繁的切换中丢失原始任务的上下文。
      **体验割裂**  仅仅为了“记个笔记”就切换整个 Agent 人格，不仅消耗 Token，还破坏了用户的心流体验。
@@ -310,7 +313,7 @@ Plan Agent 缺乏“状态持久化感知”。尽管代码已经将用户的计
 
 #### 5. 引入 Memory 让agent 拥有长期记忆
 
-一开始 **ADHD Timebox Agent** 通过 daily_tasks.json 和 上下文注 实现了状态持久化。它精确地记得“现在是 14:00，你在做任务 B，进度 50%”。哪怕重启，它读取 JSON 也能立刻恢复状态。
+在引入 ConnectOnion 的 `Memory` 模块之前， **ADHD Timebox Agent** 通过 daily_tasks.json 和 上下文注 实现了状态持久化。它精确地记得“现在是 14:00，你在做任务 B，进度 50%”。哪怕重启，它读取 JSON 也能立刻恢复状态。
 也能知道现在的任务是什么。但它的局限在于：它只能记住“设计好”的字段，比如 : start_time、end_time、status、title。但如果用户说了一句：“我发现我下午 2 点特别容易困，以后这个时间别排重活”。旧系统会因找不到 user_energy_pattern 这种字段，只能把这句话当做闲聊处理，或者存进 thought_parking 仅仅是个备忘录 别的agent 不会读 ，而在下次 Plan agent 排期时，依然会在下午 2 点排重活。
 
 加入 Memory 后，拥有了“非结构化认知” 像一个贴身管家。它不仅看表格，还会拿个小本本记下用户的“脾气”和“习惯”。
@@ -323,4 +326,8 @@ Plan Agent 缺乏“状态持久化感知”。尽管代码已经将用户的计
   <img width="536" height="98" alt="Screenshot 2026-01-07 at 11 34 30" src="https://github.com/user-attachments/assets/34ba26a8-e3d8-446b-ba38-d5c4dbea171d" /><br>
   <img width="537" height="43" alt="Screenshot 2026-01-07 at 11 34 17" src="https://github.com/user-attachments/assets/8bfb6814-2f76-4f81-ba0c-774623e5e87e" /><br>
 
+### 五、总结与致谢
+
+ADHD Timebox Agent 利用 ConnectOnion 强大的 Memory 能力和灵活的 Multi-Agent 编排，成功将一个“只会看日程表的机械程序”，升级成了一个**“有记忆、懂默契、能进化”**的聪明Agent。
+感谢 ConnectOnion，让复杂的事情变得简单，让 AI 成为了我大脑的延伸。
 
