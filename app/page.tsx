@@ -827,12 +827,12 @@ const QuickAddTask = ({
     <form onSubmit={handleSubmit} className="mb-6">
       <div
         className={`
-        relative rounded-3xl transition-all duration-300 border flex flex-col
+        relative rounded-3xl transition-all duration-300 border flex flex-col focus-within:ring-0
         ${
           isFocused
             ? isDark
-              ? "ring-2 ring-indigo-500/50 bg-slate-800 border-transparent shadow-lg shadow-indigo-900/20"
-              : "ring-2 ring-indigo-100 bg-white border-transparent shadow-xl shadow-indigo-50"
+              ? "bg-slate-800 border-transparent shadow-lg"
+              : "bg-white border-transparent shadow-xl"
             : isDark
             ? "bg-slate-900 border-slate-800"
             : "bg-white border-slate-100"
@@ -840,7 +840,7 @@ const QuickAddTask = ({
       `}
       >
         {/* Input Area */}
-        <div className="relative">
+        <div className="relative pb-6">
           <input
             type="text"
             value={val}
@@ -849,7 +849,7 @@ const QuickAddTask = ({
             onBlur={() => setIsFocused(false)}
             placeholder={MICROCOPY.idle.taskInputPlaceholder}
             className={`
-              w-full bg-transparent border-none rounded-t-3xl px-6 pt-6 pb-2 pl-14 focus:outline-none font-bold text-lg
+              w-full bg-transparent border-none rounded-t-3xl px-6 pt-6 pb-0 pl-14 focus:outline-none focus:ring-0 focus-visible:ring-0 font-bold text-lg
               ${
                 isDark
                   ? "text-slate-100 placeholder:text-slate-600"
@@ -859,39 +859,49 @@ const QuickAddTask = ({
           />
           <Plus
             className={`absolute left-5 top-6 transition-colors ${
-              isFocused
-                ? "text-indigo-500"
-                : isDark
-                ? "text-slate-600"
-                : "text-slate-300"
+              isDark ? "text-slate-600" : "text-slate-300"
             }`}
             size={24}
             strokeWidth={2.5}
           />
         </div>
 
+        {/* Separator Line */}
+        <div
+          className={`mx-6 border-t ${
+            isDark ? "border-slate-700" : "border-slate-200"
+          }`}
+        />
+
         {/* Priority Selection Bar */}
         <div
-          className={`px-6 pb-4 pt-2 flex items-center justify-between transition-opacity duration-200 ${
+          className={`px-6 pb-4 pt-6 flex items-center justify-between transition-opacity duration-200 overflow-visible ${
             isFocused || val ? "opacity-100" : "opacity-40 hover:opacity-100"
           }`}
         >
-          <div className="flex gap-3">
+          <div className="flex gap-3 items-center">
             {priorities.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 onClick={() => setPriority(p.id)}
                 className={`
-                   w-6 h-6 rounded-full flex items-center justify-center transition-all
+                   rounded-full flex items-center justify-center transition-all shrink-0 ring-0 focus:ring-0 focus-visible:ring-0 p-0 min-h-0 min-w-0
                    ${p.color} 
-                   ${
-                     priority === p.id
-                       ? "ring-2 ring-offset-2 ring-offset-transparent scale-125 " +
-                         (isDark ? "ring-white" : "ring-slate-500")
-                       : "opacity-40 hover:opacity-100 hover:scale-110"
-                   }
+                   ${priority === p.id ? "" : "opacity-40 hover:opacity-100"}
                  `}
+                style={{
+                  width: "24px",
+                  height: "24px",
+                  aspectRatio: "1 / 1",
+                  borderRadius: "50%",
+                  padding: "0",
+                  minWidth: "0",
+                  minHeight: "0",
+                  maxWidth: "24px",
+                  maxHeight: "24px",
+                  flexShrink: 0,
+                }}
                 title={p.label}
                 aria-label={`Select ${p.label} priority`}
               >
