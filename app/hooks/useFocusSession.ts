@@ -48,8 +48,9 @@ function focusReducer(
       };
       return {
         ...state,
-        status: FOCUS_STATES.IDLE,
+        status: FOCUS_STATES.ABANDONED,
         activeTaskId: null,
+        remainingSeconds: state.durationMinutes * 60,
         history: [abandonedSession, ...state.history],
       };
     case "RESET_COMPLETED":

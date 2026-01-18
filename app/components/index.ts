@@ -7,3 +7,4 @@ export { CurrentFocusCard } from "./CurrentFocusCard";
 export { QuickAddTask } from "./QuickAddTask";
 export { TaskPool } from "./TaskPool";
 export { DailyReview } from "./DailyReview";
+export { ChatInterface } from "./ChatInterface";

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FOCUS_STATES, Task } from "./types";
 import { useFocusSession } from "./hooks/useFocusSession";
 import { useTaskPool } from "./hooks/useTaskPool";
+import { useOrchestrator } from "./hooks/useOrchestrator";
 import {
   HeaderBar,
   FullScreenFocus,
@@ -12,6 +13,7 @@ import {
   QuickAddTask,
   TaskPool,
   DailyReview,
+  ChatInterface,
 } from "./components";
 
 export default function TimeBoxApp() {
@@ -24,6 +26,16 @@ export default function TimeBoxApp() {
     actions,
   } = useFocusSession();
   const { tasks, addTask } = useTaskPool();
+
+  // Orchestrator 集成
+  const {
+    recommendation,
+    isLoadingRecommendation,
+    events: orchestratorEvents,
+    updateTasks,
+    acceptRecommendation,
+  } = useOrchestrator();
+
   const [activeTaskSelection, setActiveTaskSelection] = useState<string | null>(
     null
   );
@@ -31,11 +43,107 @@ export default function TimeBoxApp() {
   const [showReview, setShowReview] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
 
+  // 跟踪上一个 focusState 用于检测状态变化
+  const prevFocusState = useRef(focusState);
+  const isInitialized = useRef(false);
+  const lastActiveTaskIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (activeTaskId) {
+      lastActiveTaskIdRef.current = activeTaskId;
+    }
+  }, [activeTaskId]);
+
+  // APP_START: 应用启动时初始化 Orchestrator
+  useEffect(() => {
+    if (!isInitialized.current && tasks.length > 0) {
+      isInitialized.current = true;
+      orchestratorEvents.appStart(tasks);
+    }
+  }, [tasks, orchestratorEvents]);
+
+  // 同步任务池到 Orchestrator
+  useEffect(() => {
+    if (isInitialized.current) {
+      updateTasks(tasks);
+    }
+  }, [tasks, updateTasks]);
+
+  // 监听 focusState 变化，发送相应事件
+  useEffect(() => {
+    const prevState = prevFocusState.current;
+    prevFocusState.current = focusState;
+
+    const startedFromRest =
+      (prevState === FOCUS_STATES.IDLE || prevState === FOCUS_STATES.ABANDONED) &&
+      focusState === FOCUS_STATES.RUNNING;
+
+    // TIMEBOX_STARTED: 从静止态（含 Abandoned）进入 RUNNING
+    if (startedFromRest && activeTaskId) {
+      orchestratorEvents.timeBoxStarted(activeTaskId, selectedDuration);
+    }
+
+    const eventTaskId = activeTaskId || lastActiveTaskIdRef.current;
+
+    // TIMEBOX_ENDED: 变为 COMPLETED
+    if (
+      focusState === FOCUS_STATES.COMPLETED &&
+      prevState !== FOCUS_STATES.COMPLETED &&
+      eventTaskId
+    ) {
+      orchestratorEvents.timeBoxEnded(
+        eventTaskId,
+        selectedDuration,
+        selectedDuration // 完成时 actualMinutes = durationMinutes
+      );
+    }
+
+    // TIMEBOX_INTERRUPTED: 变为 ABANDONED
+    if (
+      focusState === FOCUS_STATES.ABANDONED &&
+      prevState !== FOCUS_STATES.ABANDONED &&
+      eventTaskId
+    ) {
+      const elapsedMinutes = Math.max(
+        0,
+        Math.round((selectedDuration * 60 - remainingSeconds) / 60)
+      );
+      orchestratorEvents.timeBoxInterrupted(
+        eventTaskId,
+        selectedDuration,
+        elapsedMinutes,
+        "User abandoned"
+      );
+    }
+  }, [
+    focusState,
+    activeTaskId,
+    selectedDuration,
+    remainingSeconds,
+    orchestratorEvents,
+  ]);
+
+  // 当收到推荐时，自动选择推荐的任务
+  useEffect(() => {
+    const idleLike =
+      focusState === FOCUS_STATES.IDLE || focusState === FOCUS_STATES.ABANDONED;
+    if (recommendation && idleLike) {
+      setActiveTaskSelection(recommendation.taskId);
+      // 可选：自动设置推荐的时长
+      if (recommendation.durationMinutes !== selectedDuration) {
+        actions.setDuration(recommendation.durationMinutes);
+      }
+    }
+  }, [recommendation, focusState, selectedDuration, actions]);
+
   useEffect(() => {
     if (activeTaskId) {
       setActiveTaskSelection(activeTaskId);
       setIsPoolExpanded(false);
-    } else if (focusState === FOCUS_STATES.IDLE) {
+    } else if (
+      focusState === FOCUS_STATES.IDLE ||
+      focusState === FOCUS_STATES.ABANDONED
+    ) {
       setIsPoolExpanded(true);
     }
   }, [activeTaskId, focusState]);
@@ -151,6 +259,9 @@ export default function TimeBoxApp() {
           isDark={isDarkMode}
         />
       )}
+
+      {/* Chat Interface */}
+      <ChatInterface isDark={isDarkMode} />
     </div>
   );
 }

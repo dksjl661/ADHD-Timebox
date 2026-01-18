@@ -1,0 +1,26 @@
+[
+  {
+    "id": "db6cdd89",
+    "content": "告诉我如何区别useffect和uselayouteffect",
+    "type": "search",
+    "source": "orchestrator",
+    "status": "completed",
+    "created_at": "2026-01-18 21:08:34",
+    "session_id": null,
+    "result": "未找到相关信息，建议换个关键词。",
+    "error": null,
+    "completed_at": "2026-01-18 21:08:36"
+  },
+  {
+    "id": "16bcc2a0",
+    "content": "姜太公钓鱼 下一句是什么？",
+    "type": "search",
+    "source": "orchestrator",
+    "status": "completed",
+    "created_at": "2026-01-18 21:09:56",
+    "session_id": null,
+    "result": "🔍 搜索结果：\n\n1. Jollibee | Fast Food Restaurant Near Me\n   So bring your family, friends or even eat solo at a Jollibee near you. You can dine-in with us, driv...\n   来源: https://order.jollibee.com/\n\n2. Jollibee Menu\n   Explore Jollibee's delicious menu! Find your favorite Fried Chicken, Spaghetti, Burger and more. Ord...\n   来源: https://order.jollibee.com/menu\n\n3. Jollibee Restaurants Near Me – Find Food Near Me\n   Find a Jollibee restaurant near you! Search our store locator to get started. Looking for food near...\n   来源: https://order.jollibee.com/stores\n\n（共 3 条结果，完整内容见 current_parking.json）",
+    "error": null,
+    "completed_at": "2026-01-18 21:09:57"
+  }
+]
